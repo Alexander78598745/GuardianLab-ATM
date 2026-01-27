@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian Lab - ATM Pro</title>
+    
+    <link rel="icon" href="ESCUDO ATM.png" type="image/png">
+    <link rel="shortcut icon" href="ESCUDO ATM.png" type="image/png">
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1C2C5B">
+    <link rel="apple-touch-icon" href="ESCUDO ATM.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <img src="ESCUDO ATM.png" alt="ATM" class="escudo-img">
+            <div class="header-text">
+                <h1>Guardian<span class="highlight">Lab</span></h1>
+                <p>ATM Goalkeepers Pro</p>
+            </div>
+        </div>
+        <button class="theme-toggle" onclick="alternarTema()" title="Cambiar Tema">☀️</button>
+    </header>
+
+    <main>
+        <section id="section-porteros" class="fade-in">
+            <div class="section-header"><h2>Mis Porteros</h2><span class="badge" id="total-porteros">0</span></div>
+            <div class="modern-card form-card" style="text-align:center;">
+                <div class="profile-upload-container">
+                    <label for="fotoPorteroInput">
+                        <div class="image-wrapper"><img id="fotoPreview" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4="></div>
+                        <div class="upload-icon">📷</div>
+                    </label>
+                    <input type="file" id="fotoPorteroInput" accept="image/*" onchange="previsualizarFoto()">
+                </div>
+                <input type="text" id="nombrePortero" placeholder="Nombre y Apellidos" style="margin-top:15px;">
+                <div class="row">
+                    <input type="number" id="anioPortero" placeholder="Año Nac." style="flex:1">
+                    <select id="catPortero" onchange="actualizarEquipos()" style="flex:2">
+                        <option value="">Categoría...</option>
+                        <option value="Prebenjamín">Prebenjamín</option><option value="Benjamín">Benjamín</option><option value="Alevín">Alevín</option><option value="Infantil">Infantil</option><option value="Cadete">Cadete</option><option value="Juvenil">Juvenil</option>
+                    </select>
+                </div>
+                <select id="equipoPortero"><option value="">Selecciona Categoría...</option></select>
+                
+                <button onclick="procesarPortero()" id="btn-save" class="btn-main">Añadir Jugador</button>
+                <button onclick="cancelarEdicion()" id="btn-cancel" class="btn-main" style="display:none; background:#555; margin-top:10px;">Cancelar Edición</button>
+            </div>
+            <div id="lista-porteros" class="list-vertical"></div>
+        </section>
+
+        <section id="section-sesiones" class="fade-in" style="display:none;">
+            <div class="section-header"><h2>Seguimiento de Objetivos</h2></div>
+            
+            <div class="modern-card form-card">
+                <div class="row">
+                    <select id="obj-portero" class="full-width" style="border: 1px solid var(--atm-red); font-weight:bold; flex:2" onchange="resetearEvaluacionTemporal()">
+                        <option value="">Seleccionar Portero...</option>
+                    </select>
+                    <input type="date" id="obj-fecha" style="flex:1">
+                </div>
+
+                <div class="row" style="margin-top: 15px;">
+                    <select id="obj-tipo" class="full-width" onchange="cargarAccionesObjetivos()">
+                        <option value="">Tipo de Acción...</option>
+                        <option value="DEFENSIVAS">Acciones Defensivas</option>
+                        <option value="OFENSIVAS">Acciones Ofensivas</option>
+                    </select>
+                </div>
+                <select id="obj-accion" class="full-width" disabled>
+                    <option value="">Selecciona Tipo primero...</option>
+                </select>
+
+                <label style="font-size:0.8rem; color:var(--text-sec); margin-top:10px; margin-bottom:5px; display:block;">Nivel de Competencia:</label>
+                <div class="competencia-selector">
+                    <button class="btn-comp comp-1" onclick="selectCompetencia(1)">Incomp. Inconsciente</button>
+                    <button class="btn-comp comp-2" onclick="selectCompetencia(2)">Incomp. Consciente</button>
+                    <button class="btn-comp comp-3" onclick="selectCompetencia(3)">Comp. Consciente</button>
+                    <button class="btn-comp comp-4" onclick="selectCompetencia(4)">Comp. Inconsciente</button>
+                </div>
+                <input type="hidden" id="obj-competencia-val" value="">
+
+                <div class="row" style="align-items: center; margin-top:15px;">
+                    <div style="flex:1">
+                        <label style="font-size:0.8rem; color:var(--text-sec);">Nota (1-5)</label>
+                        <input type="number" id="obj-puntaje" min="1" max="5" value="1" style="margin-bottom:0;">
+                    </div>
+                    <button onclick="agregarEvaluacionTemporal()" class="btn-main" style="flex:2; background: var(--atm-blue); margin-top:18px;">➕ Añadir a la lista</button>
+                </div>
+            </div>
+
+            <div id="contenedor-evaluacion-temporal" style="display:none; margin-bottom: 30px;">
+                <h3 class="section-divider" style="color:#00ff88;">Acciones a Registrar</h3>
+                <div id="lista-temp-evaluaciones" class="list-vertical" style="margin-bottom:15px;"></div>
+                
+                <button onclick="guardarReporteCompleto()" class="btn-main" style="background: linear-gradient(135deg, #00ff88, #00cc6a); color:black; font-weight:800; font-size: 1.1rem;">
+                    💾 GUARDAR Y GENERAR INFORME
+                </button>
+            </div>
+
+            <h3 class="section-divider">Historial de Informes</h3>
+            <div id="lista-seguimientos" class="list-vertical"></div>
+        </section>
+
+        <section id="section-partidos" class="fade-in" style="display:none;">
+            <div class="section-header"><h2>Match Day</h2><button onclick="abrirConfigPartido()" class="btn-small-red">🔴 LIVE PRO</button></div>
+            <div id="live-match-banner" style="display:none; margin-bottom: 20px;">
+                <button onclick="cambiarSeccion('live')" class="btn-main" style="background: #00ff88; color: black; border: 2px solid white; animation: pulse 2s infinite;">
+                    ⚽ VOLVER AL PARTIDO EN JUEGO
+                </button>
+            </div>
+            <div id="lista-partidos" class="list-vertical"></div>
+        </section>
+
+        <section id="section-live" class="fade-in" style="display:none;">
+            <div class="live-scoreboard modern-card">
+                <div class="score-team-control">
+                    <span id="live-equipo-local" class="team-name">ATM</span>
+                    <div class="score-buttons">
+                        <button onclick="gestionarGol('local', 'restar')" class="btn-score minus">-</button>
+                        <button onclick="gestionarGol('local', 'sumar')" class="btn-score plus">+</button>
+                    </div>
+                    <h2 id="score-local">0</h2>
+                </div>
+                <div class="match-timer"><span id="crono">00:00</span><span id="live-parte-txt" class="parte-badge">TIEMPO</span></div>
+                <div class="score-team-control">
+                    <span id="live-equipo-rival" class="team-name">Rival</span>
+                    <div class="score-buttons">
+                        <button onclick="gestionarGol('rival', 'restar')" class="btn-score minus">-</button>
+                        <button onclick="gestionarGol('rival', 'sumar')" class="btn-score plus">+</button>
+                    </div>
+                    <h2 id="score-rival">0</h2>
+                </div>
+            </div>
+
+            <div class="timer-nav-container">
+                <div class="timer-nav">
+                    <button id="btn-start-partido" onclick="controlCrono('start')" class="timer-btn start">▶ Inicio</button>
+                    <button id="btn-fin-1" onclick="controlCrono('fin1')" class="timer-btn stop" style="display:none">⏸ Descanso</button>
+                    <button id="btn-ini-2" onclick="controlCrono('ini2')" class="timer-btn start" style="display:none">▶ 2ª Parte</button>
+                    <button id="btn-fin-partido" onclick="controlCrono('fin')" class="timer-btn end" style="display:none">⏹ Final</button>
+                </div>
+            </div>
+
+            <div class="live-controls modern-card" style="margin-top:15px">
+                <div class="row" style="align-items: center;">
+                    <div style="flex:1; display:flex; align-items:center; gap:10px;">
+                        <img id="live-portero-foto" src="" class="mini-foto-live">
+                        <span id="live-portero-nombre" style="font-weight:bold; color:var(--atm-red)">Portero</span>
+                    </div>
+                    <button onclick="abrirModalCambio()" class="btn-accion-rapida" style="background:var(--atm-blue); border:1px solid var(--atm-red)">🔄 Cambio</button>
+                </div>
+            </div>
+
+            <h3 class="section-divider">Registrar Acción</h3>
+            <div id="panel-acciones-avanzado"></div>
+            
+            <h3 class="section-divider">Cronología</h3>
+            <div id="live-log" class="list-vertical" style="min-height: 150px; max-height: 300px; overflow-y:auto;"></div>
+        </section>
+
+        <section id="section-datos" class="fade-in" style="display:none;">
+            <div class="section-header"><h2>Estadísticas</h2></div>
+            <div class="modern-card"><select id="select-stats-portero" onchange="actualizarGrafica()" class="full-width"><option value="">-- Elegir Portero --</option></select></div>
+            <div class="kpi-grid">
+                <div class="kpi-card"><div class="kpi-value" id="kpi-media">-</div><div class="kpi-label">Nota Media (Objetivos)</div></div>
+                <div class="kpi-card"><div class="kpi-value" id="kpi-clean-sheets">-</div><div class="kpi-label">Reportes</div></div>
+            </div>
+            <div class="modern-card chart-container"><canvas id="graficaRendimiento"></canvas></div>
+        </section>
+    </main>
+
+    <div id="modal-config-partido" class="modal">
+        <div class="modal-content modern-card">
+            <span class="close-btn" onclick="cerrarModal('modal-config-partido')">&times;</span>
+            <h3>Configurar Partido</h3>
+            <div class="row"><select id="conf-equipo" class="full-width" onchange="filtrarPorterosPorEquipo()"><option value="">Equipo ATM...</option></select><select id="conf-condicion" style="width:140px"><option value="Local">Local</option><option value="Visitante">Visitante</option></select></div>
+            <select id="conf-portero-titular" class="full-width"><option value="">Selecciona Equipo...</option></select>
+            <div class="row"><input type="text" id="conf-rival" placeholder="Rival" style="flex:2"><select id="conf-tipo" style="flex:1"><option value="Liga">Liga</option><option value="Torneo">Torneo</option><option value="Amistoso">Amistoso</option></select></div>
+            <input type="text" id="conf-campo" placeholder="Campo de Juego" class="full-width">
+            <div class="row"><input type="date" id="conf-fecha" style="flex:2"><input type="number" id="conf-jornada" placeholder="Jor." style="flex:1"></div>
+            <div class="row"><input type="text" id="conf-entrenador" placeholder="Entrenador" style="flex:2"><select id="conf-dificultad" style="flex:1"><option value="Media">Dif. Media</option><option value="Alta">Alta</option><option value="Baja">Baja</option></select></div>
+            <button onclick="iniciarLivePro()" class="btn-main">Comenzar Partido</button>
+        </div>
+    </div>
+
+    <div id="modal-cambio" class="modal"><div class="modal-content modern-card"><span class="close-btn" onclick="cerrarModal('modal-cambio')">&times;</span><h3>Realizar Cambio</h3><select id="select-cambio-portero" class="full-width"><option>Cargando...</option></select><button onclick="confirmarCambio()" class="btn-main" style="background:var(--atm-blue)">Confirmar Cambio</button></div></div>
+    <div id="modal-gol-rival" class="modal"><div class="modal-content modern-card" style="border-color: #ffaa00;"><h3>Gol en Contra</h3><div class="row"><button onclick="registrarGolContra(false)" class="btn-main" style="background:#444">NO ERROR</button><button onclick="mostrarInputError()" class="btn-main" style="background:var(--atm-red)">SÍ, ERROR</button></div><div id="div-error-detalle" style="display:none; margin-top:15px;"><input type="text" id="gol-error-detalle" placeholder="Detalle..."><button onclick="registrarGolContra(true)" class="btn-main">Confirmar</button></div></div></div>
+    <div id="modal-accion" class="modal"><div class="modal-content modern-card" style="text-align:center;"><h3 id="accion-titulo" style="color:var(--atm-red); margin-bottom:20px">Acción</h3><div class="row"><button onclick="guardarAccionLive('CORRECTO')" class="btn-main" style="background:#00ff88; color:black">✅ Correcto</button><button onclick="guardarAccionLive('ERROR')" class="btn-main" style="background:var(--atm-red)">❌ Error</button></div><input type="text" id="accion-obs" placeholder="Observación (opcional)" style="margin-top:15px"></div></div>
+    <div id="modal-fin-partido" class="modal"><div class="modal-content modern-card" style="max-width:600px"><h3>Resumen del Partido</h3><div class="row" style="margin-bottom:15px; background:rgba(0,0,0,0.2); padding:10px; border-radius:10px; justify-content: space-around; align-items: center;"><span style="font-weight:bold">ATM</span><span id="fin-res-local" style="font-size:1.5rem; font-weight:800; color:var(--atm-red)">0</span><span style="font-weight:bold">-</span><span id="fin-res-rival" style="font-size:1.5rem; font-weight:800; color:var(--atm-red)">0</span><span style="font-weight:bold">RIVAL</span></div><div id="container-analisis-porteros" style="max-height: 400px; overflow-y:auto; margin-bottom:15px;"></div><button onclick="prepararVistaPreviaPDF()" class="btn-main" style="background: linear-gradient(135deg, #00ff88, #00cc6a); color:black; margin-top:10px;">📄 Generar Vista Previa</button></div></div>
+    
+    <div id="modal-pdf-preview" class="modal" style="background: rgba(10,10,10,0.98); z-index: 2000;">
+        <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;"><div style="width:100%; display:flex; justify-content:center; align-items:center; padding:15px; background:#111; border-bottom:1px solid #333;"><h3 style="color:white; margin:0 20px 0 0;">Vista Previa</h3><button onclick="imprimirPDFNativo()" class="btn-main" style="width:auto; padding:10px 25px; background:white; color:black; font-weight:bold; margin-right:10px;">🖨️ IMPRIMIR / GUARDAR</button><button onclick="cerrarModal('modal-pdf-preview')" class="btn-small-red">Cerrar</button></div><div style="flex:1; overflow-y:auto; background:#555; width:100%; display:flex; justify-content:center; padding:40px;"><div id="preview-content"></div></div></div>
+    </div>
+
+    <nav class="floating-nav">
+        <button onclick="cambiarSeccion('porteros')" id="btn-porteros" class="active">Porteros</button>
+        <button onclick="cambiarSeccion('sesiones')" id="btn-sesiones">Objetivos</button>
+        <button onclick="cambiarSeccion('partidos')" id="btn-partidos">Partidos</button>
+        <button onclick="cambiarSeccion('datos')" id="btn-datos">Datos</button>
+    </nav>
+
+    <div id="printable-area" class="printable-hidden"></div>
+
+    <div id="plantilla-pdf-pro" style="display:none;">
+        <div class="pdf-container">
+            <div class="pdf-header-pro">
+                <img src="ESCUDO ATM.png" class="pdf-logo" alt="ATM">
+                <div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div>
+            </div>
+            <div class="pdf-divider-red"></div>
+            <div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3>
+                <table class="pdf-table-info">
+                    <tr><td><strong>Equipo:</strong> <span id="print-equipo"></span></td><td><strong>Categoría:</strong> <span id="print-categoria"></span></td><td><strong>Tipo:</strong> <span id="print-tipo"></span></td><td><strong>Jornada:</strong> <span id="print-jornada"></span></td></tr>
+                    <tr><td><strong>Rival:</strong> <span id="print-rival"></span></td><td><strong>Fecha:</strong> <span id="print-fecha"></span></td><td><strong>Dificultad:</strong> <span id="print-dificultad"></span></td><td><strong>Entrenador:</strong> <span id="print-entrenador"></span></td></tr>
+                    <tr><td><strong>Campo:</strong> <span id="print-campo"></span></td><td><strong>Condición:</strong> <span id="print-condicion"></span></td><td colspan="2"></td></tr>
+                    <tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span id="print-res-local" style="color:#CB3524; font-size:16px; font-weight:bold"></span> - <span id="print-res-rival" style="color:#CB3524; font-size:16px; font-weight:bold"></span> RIVAL</td></tr>
+                </table>
+            </div>
+            <div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3><div id="print-porteros-stats"></div></div>
+            <div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3>
+                <table class="pdf-crono-table"><thead><tr><th width="8%">Min</th><th width="35%">Acción</th><th width="20%">Portero</th><th width="12%">Calif.</th><th width="25%">Obs.</th></tr></thead><tbody id="print-cronologia-body"></tbody></table>
+            </div>
+            <div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3><div id="print-analisis-individual"></div></div>
+            <div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div>
+        </div>
+    </div>
+    
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW registrado')).catch(err => console.log('SW Error', err));
+        });
+      }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
