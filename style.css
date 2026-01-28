@@ -6,11 +6,16 @@
 }
 body.light-mode { --bg-body: #f4f6f8; --bg-card: #ffffff; --text-main: #1c2c5b; --text-sec: #555555; --input-bg: #eef2f5; }
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
+
+/* FIX TABLET: Evita refrescar página al bajar el dedo */
 body { 
-    background-color: var(--bg-body); color: var(--text-main); 
-    padding-bottom: 110px; transition: background 0.3s, color 0.3s;
-    overscroll-behavior-y: contain; /* Bloquea recarga por deslizamiento */
+    background-color: var(--bg-body); 
+    color: var(--text-main); 
+    padding-bottom: 110px; 
+    transition: background 0.3s, color 0.3s; 
+    overscroll-behavior-y: contain; 
 }
+
 header { background: linear-gradient(180deg, var(--atm-blue) 0%, rgba(17,26,54,0) 100%); padding: 25px 20px; margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center; }
 .header-content { display: flex; align-items: center; gap: 15px; }
 .escudo-img, .pdf-logo { height: 60px; width: auto; object-fit: contain; }
