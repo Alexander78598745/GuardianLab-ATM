@@ -1,3 +1,6 @@
+// --- FUNCIONES GLOBALES ---
+function cerrarModal(id){ document.getElementById(id).style.display='none'; }
+
 // --- CONFIGURACIÓN FIREBASE (COMPAT) ---
 const firebaseConfig = {
   apiKey: "AIzaSyAciST9qvSnRNqjVD9Lkx-xyfbdU6PJLIc",
@@ -15,6 +18,26 @@ try {
 
 const db = firebase.firestore();
 
+// HELPERS DB
+function dbSave(storeName, data) {
+    const id = String(data.id || Date.now());
+    return db.collection(storeName).doc(id).set(data)
+        .then(() => true)
+        .catch(err => { console.error(err); return false; });
+}
+
+function dbGetAll(storeName) {
+    return db.collection(storeName).get().then(snap => {
+        const list = [];
+        snap.forEach(doc => list.push(doc.data()));
+        return list;
+    });
+}
+
+function dbDelete(storeName, id) {
+    return db.collection(storeName).doc(String(id)).delete();
+}
+
 // --- VARIABLES GLOBALES ---
 let partidoLive = { config: {}, acciones: [], marcador: {local:0, rival:0}, porterosJugaron: new Set(), minutosJugados: {}, porteroActualId: null, parteActual: 'Pre-Partido', crono: {seg:0, int:null, run:false, startTs:0, savedSeg:0, lastUpdate:0} };
 let accionTemporal = null;
@@ -23,14 +46,15 @@ let evaluacionesTemporales = [];
 let competenciaSeleccionada = null;
 let partidoEnEdicion = null;
 
-const CATALOGO_ACCIONES = {
-    "DEFENSIVAS": { id: "def", grupos: { "BLOCAJES": ["Blocaje Frontal Raso", "Blocaje Lateral Raso", "Blocaje Frontal Media Altura", "Blocaje Lateral Media Altura", "Blocaje Aéreo"], "DESVÍOS": ["Desvío Mano Natural", "Desvío Mano Cambiada", "Desvío 2 Manos"], "JUEGO AÉREO": ["Despeje 1 Puño", "Despeje 2 Puños", "Prolongación"], "1 VS 1": ["Reducción de Espacios", "Posición Cruz", "Apertura", "Caída Lateral"], "OTRAS": ["Rechace"] } },
-    "OFENSIVAS": { id: "of", grupos: { "PASES CON LA MANO": ["Pase Mano Raso", "Pase Mano Alto", "Pase Mano Picado"], "PASES CON PIE": ["Volea", "Pase Corto", "Pase Largo", "Despeje", "Despeje Orientado"], "CONTINUIDAD": ["Perfil + Control + Pase Corto", "Perfil + Control + Pase Largo", "Largo Control Previo", "Largo en Movimiento"] } },
-    "TÁCTICAS": { id: "tac", grupos: { "POSICIONAMIENTO": ["Posición y Bisectriz", "Visión de Juego", "Saltar Líneas", "Posición Fase Ofensiva", "Posición Fase Defensiva", "Barrera"], "COMUNICACIÓN": ["Comunicación Verbal", "Comunicación NO Verbal"], "CONSTRUCCIÓN": ["Pase Espalda Defensa", "Desmarque de Apoyo"] } },
-    "REINCORPORACIONES": { id: "rein", grupos: { "TIPOS": ["A Posición Básica", "A Mismo Lado", "A Lado Contrario", "Tras Blocaje"] } }
+// CATÁLOGOS BASE
+let CATALOGO_ACCIONES = {
+    "DEFENSIVAS": { id: "def", grupos: { "BLOCAJES": ["Blocaje Frontal Raso", "Blocaje Lateral Raso", "Blocaje Frontal Media Altura", "Blocaje Lateral Media Altura", "Blocaje Aéreo"], "DESVÍOS": ["Desvío Mano Natural", "Desvío Mano Cambiada", "Desvío 2 Manos"], "JUEGO AÉREO": ["Despeje 1 Puño", "Despeje 2 Puños", "Prolongación"], "1 VS 1": ["Reducción de Espacios", "Posición Cruz", "Apertura", "Caída Lateral"], "OTRAS": ["Rechace", "PERSONALIZADAS"] } },
+    "OFENSIVAS": { id: "of", grupos: { "PASES CON LA MANO": ["Pase Mano Raso", "Pase Mano Alto", "Pase Mano Picado"], "PASES CON PIE": ["Volea", "Pase Corto", "Pase Largo", "Despeje", "Despeje Orientado"], "CONTINUIDAD": ["Perfil + Control + Pase Corto", "Perfil + Control + Pase Largo", "Largo Control Previo", "Largo en Movimiento"], "OTRAS": ["PERSONALIZADAS"] } },
+    "TÁCTICAS": { id: "tac", grupos: { "POSICIONAMIENTO": ["Posición y Bisectriz", "Visión de Juego", "Saltar Líneas", "Posición Fase Ofensiva", "Posición Fase Defensiva", "Barrera"], "COMUNICACIÓN": ["Comunicación Verbal", "Comunicación NO Verbal"], "CONSTRUCCIÓN": ["Pase Espalda Defensa", "Desmarque de Apoyo"], "OTRAS": ["PERSONALIZADAS"] } },
+    "REINCORPORACIONES": { id: "rein", grupos: { "TIPOS": ["A Posición Básica", "A Mismo Lado", "A Lado Contrario", "Tras Blocaje"], "OTRAS": ["PERSONALIZADAS"] } }
 };
 
-const ACCIONES_EVALUACION = {
+let ACCIONES_EVALUACION = {
     "DEFENSIVAS": ["Blocaje Frontales Medio y Raso", "Blocaje lateral raso", "Blocaje lateral media altura", "Desvío raso", "Desvío a Media Altura", "Reducción de espacios y Posición Cruz", "Apertura", "Reincorporaciones", "Blocaje Aéreo", "Despeje de Puños"],
     "OFENSIVAS": ["Pase mano raso", "Pase mano alto", "Pase mano picado", "Perfilamiento y Controles", "Pase Raso con el Píe", "Pase alto con el Píe", "Voleas"]
 };
@@ -42,13 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarPorteros();
     cargarPartidosHistorial();
     cargarHistorialReportes();
+    cargarConceptosPersonalizados();
     recuperarPartidoEnCurso();
-    
-    if(localStorage.getItem('guardian_theme') === 'light'){ document.body.classList.add('light-mode'); }
     
     const today = new Date().toISOString().split('T')[0];
     const fConf = document.getElementById('conf-fecha'); if(fConf) fConf.value=today;
     const fObj = document.getElementById('obj-fecha'); if(fObj) fObj.value=today;
+    
+    if(localStorage.getItem('guardian_theme') === 'light'){ document.body.classList.add('light-mode'); }
 });
 
 window.onbeforeunload = function() {
@@ -59,11 +84,10 @@ window.onbeforeunload = function() {
 
 // --- NAVEGACIÓN ---
 window.alternarTema = function() { document.body.classList.toggle('light-mode'); localStorage.setItem('guardian_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark'); }
-
 window.cambiarSeccion = function(sec) {
     document.getElementById('modal-pdf-preview').style.display = 'none';
     document.getElementById('modal-fin-partido').style.display = 'none';
-    ['porteros','sesiones','partidos','datos','live'].forEach(id => {
+    ['porteros','sesiones','partidos','conceptos','live'].forEach(id => {
         const secEl = document.getElementById('section-'+id);
         const btnEl = document.getElementById('btn-'+id);
         if(secEl) secEl.style.display = 'none';
@@ -82,7 +106,61 @@ window.cambiarSeccion = function(sec) {
         }
     }
 }
-window.cerrarModal = function(id) { document.getElementById(id).style.display='none'; }
+
+// --- CONCEPTOS PERSONALIZADOS ---
+function cargarConceptosPersonalizados() {
+    db.collection('conceptos').onSnapshot(snap => {
+        const listDiv = document.getElementById('lista-conceptos-custom');
+        if(listDiv) listDiv.innerHTML = '';
+
+        // Reset arrays to base state (avoid duplicates on reload)
+        // (Simplified reset logic here)
+        CATALOGO_ACCIONES["DEFENSIVAS"].grupos["PERSONALIZADAS"] = [];
+        CATALOGO_ACCIONES["OFENSIVAS"].grupos["PERSONALIZADAS"] = [];
+        CATALOGO_ACCIONES["TÁCTICAS"].grupos["PERSONALIZADAS"] = [];
+        CATALOGO_ACCIONES["REINCORPORACIONES"].grupos["PERSONALIZADAS"] = [];
+
+        snap.forEach(doc => {
+            const c = doc.data();
+            let labelType = "";
+
+            // Logic to add to arrays
+            if (c.tipo.startsWith("OBJ_")) {
+                const cat = c.tipo.split("_")[1] === "DEF" ? "DEFENSIVAS" : "OFENSIVAS";
+                if (!ACCIONES_EVALUACION[cat].includes(c.nombre)) ACCIONES_EVALUACION[cat].push(c.nombre);
+                labelType = `Objetivos (${cat})`;
+            } else if (c.tipo.startsWith("LIVE_")) {
+                const map = { "LIVE_DEF": "DEFENSIVAS", "LIVE_OF": "OFENSIVAS", "LIVE_TAC": "TÁCTICAS", "LIVE_REIN": "REINCORPORACIONES" };
+                const cat = map[c.tipo];
+                if (CATALOGO_ACCIONES[cat]) {
+                    CATALOGO_ACCIONES[cat].grupos["PERSONALIZADAS"].push(c.nombre);
+                }
+                labelType = `Live Pro (${cat})`;
+            }
+
+            if(listDiv) {
+                listDiv.innerHTML += `<div class="item-temp-eval" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div><strong>${c.nombre}</strong><br><span style="font-size:0.7em;color:#aaa">${labelType}</span></div>
+                    <button class="btn-trash" onclick="borrarConcepto('${doc.id}')">🗑️</button>
+                </div>`;
+            }
+        });
+    });
+}
+
+window.guardarNuevoConcepto = function() {
+    const nombre = document.getElementById('new-concepto-nombre').value;
+    const tipo = document.getElementById('new-concepto-tipo').value;
+    if(!nombre) return alert("Escribe un nombre");
+    
+    db.collection('conceptos').add({ nombre, tipo, id: Date.now() });
+    document.getElementById('new-concepto-nombre').value = '';
+    alert("Acción guardada correctamente");
+}
+
+window.borrarConcepto = function(id) {
+    if(confirm("¿Borrar esta acción?")) db.collection('conceptos').doc(id).delete();
+}
 
 // --- PORTEROS ---
 window.previsualizarFoto = function() {
@@ -112,7 +190,7 @@ function cargarPorteros() {
             c.innerHTML += `<div class="portero-card"><div style="display:flex; align-items:center;"><img src="${p.foto||def}" class="mini-foto-list"><div><div class="card-title">${p.nombre}</div><div class="card-subtitle">${p.equipo} (${p.anio||'-'})</div></div></div><div><button class="btn-icon-action" onclick="window.cargarDatosEdicion('${p.id}')">✏️</button><button class="btn-trash" onclick="window.borrarPortero('${p.id}')">🗑️</button></div></div>`;
         });
         const opts = '<option value="">Seleccionar...</option>' + lista.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
-        ['obj-portero', 'select-stats-portero', 'conf-portero-titular'].forEach(id => {
+        ['obj-portero', 'conf-portero-titular'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.innerHTML = opts;
         });
@@ -138,7 +216,6 @@ window.procesarPortero = function() {
     };
 
     if(file) {
-        // COMPRESIÓN DE IMAGEN PARA TABLET
         const r = new FileReader();
         r.onload = (e) => {
             const img = new Image();
@@ -213,17 +290,17 @@ window.renderizarListaTemporal = function() {
 window.guardarReporteCompleto = function() {
     const pid = document.getElementById('obj-portero').value; const fecha = document.getElementById('obj-fecha').value;
     if(!pid || !fecha || evaluacionesTemporales.length === 0) return alert("Sin datos");
-    const reporte = { porteroId: pid, fecha: fecha, acciones: evaluacionesTemporales, timestamp: Date.now() };
-    db.collection("reportes").add(reporte).then(docRef => {
+    const reporteID = String(Date.now());
+    const reporte = { id: reporteID, porteroId: pid, fecha: fecha, acciones: evaluacionesTemporales, timestamp: Date.now() };
+    db.collection("reportes").doc(reporteID).set(reporte).then(() => {
         const batch = db.batch();
         evaluacionesTemporales.forEach(item => {
             const ref = db.collection("seguimientos").doc();
-            batch.set(ref, { porteroId: pid, fecha: fecha, accion: item.accion, competencia: item.competencia, puntaje: item.puntaje, reporteId: docRef.id });
+            batch.set(ref, { porteroId: pid, fecha: fecha, accion: item.accion, competencia: item.competencia, puntaje: item.puntaje, reporteId: reporteID });
         });
         batch.commit(); generarPDFReporteLote(reporte); window.resetearEvaluacionTemporal();
     });
 }
-// FIX PDF: TÍTULO Y NOTA MEDIA
 function generarPDFReporteLote(reporte) {
     db.collection("porteros").doc(reporte.porteroId).get().then(doc => {
         const p = doc.data(); const foto = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4=";
@@ -236,13 +313,13 @@ function generarPDFReporteLote(reporte) {
             filas += `<tr><td style="padding:8px; border-bottom:1px solid #eee;">${item.accion}</td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center;"><span style="background:${bg}; color:${fg}; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${label}</span></td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">${item.puntaje}</td></tr>`;
         });
         const media = (sum / reporte.acciones.length).toFixed(1);
-        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE OBJETIVOS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p><p style="margin-top:5px; font-size:1.1em; color:#1C2C5B;"><strong>Nota Media Seguimiento: ${media}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
+        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE OBJETIVOS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p><p style="margin-top:5px;font-size:1.1em;color:#1C2C5B"><strong>Nota Media Seguimiento: ${media}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
         document.getElementById('preview-content').innerHTML = html; document.getElementById('printable-area').innerHTML = html; document.getElementById('modal-pdf-preview').style.display = 'flex';
     });
 }
 function cargarHistorialReportes() {
     db.collection("reportes").orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
-        const cont = document.getElementById('lista-seguimientos'); cont.innerHTML = ''; // LIMPIEZA
+        const cont = document.getElementById('lista-seguimientos'); cont.innerHTML = '';
         snap.forEach(doc => {
             const rep = doc.data();
             db.collection("porteros").doc(rep.porteroId).get().then(pDoc => {
@@ -251,27 +328,17 @@ function cargarHistorialReportes() {
         });
     });
 }
-window.verPDFReporteObj = function(id) { db.collection("reportes").doc(id).get().then(doc => { if(doc.exists) generarPDFReporteLote(doc.data()); }); }
-// FIX DATOS FANTASMA: BORRAR HIJOS
+window.verPDFReporteObj = function(id) { db.collection("reportes").doc(String(id)).get().then(doc => { if(doc.exists) generarPDFReporteLote(doc.data()); }); }
+// FIX: BORRAR DATOS FANTASMA
 window.borrarReporte = function(id) { 
     if(confirm("¿Borrar?")) {
-        db.collection("reportes").doc(id).delete();
-        db.collection("seguimientos").where("reporteId", "==", id).get().then(snap => {
+        db.collection("reportes").doc(String(id)).delete();
+        db.collection("seguimientos").where("reporteId", "==", String(id)).get().then(snap => {
             const batch = db.batch();
             snap.forEach(doc => batch.delete(doc.ref));
             batch.commit();
         });
     }
-}
-window.actualizarGrafica = function() {
-    const pid = document.getElementById('select-stats-portero').value; if(!pid) return;
-    db.collection("seguimientos").where("porteroId", "==", pid).orderBy("fecha").limit(50).get().then(snap => {
-        const dataPoints = []; const labels = []; let total = 0;
-        snap.forEach(doc => { const d = doc.data(); dataPoints.push(d.puntaje); labels.push(d.fecha.substring(5)); total += d.puntaje; });
-        document.getElementById('kpi-media').innerText = dataPoints.length ? (total/dataPoints.length).toFixed(1) : "-"; document.getElementById('kpi-clean-sheets').innerText = dataPoints.length;
-        const ctx = document.getElementById('graficaRendimiento').getContext('2d'); if(window.myChart) window.myChart.destroy();
-        window.myChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Puntaje', data: dataPoints, borderColor: '#CB3524', backgroundColor: 'rgba(203,53,36,0.1)', tension: 0.4, fill: true }] }, options: { scales: { y: { min: 0, max: 5 } } } });
-    });
 }
 
 // --- LIVE MATCH ---
@@ -308,7 +375,7 @@ window.actualizarUI = function() {
     if(!partidoLive.porteroActualId) return;
     document.getElementById('live-portero-nombre').innerText = "Cargando...";
     db.collection("porteros").doc(partidoLive.porteroActualId).get().then(doc => {
-        if(doc.exists) { const p = doc.data(); document.getElementById('live-portero-nombre').innerText = p.nombre; document.getElementById('live-portero-foto').src = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4="; }
+        if(doc.exists) { const p = doc.data(); document.getElementById('live-portero-nombre').innerText = p.nombre; document.getElementById('live-portero-foto').src = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIwIDIxdi0yYTQgNCAwIDAgMC00LTRoLThhNCA0IDAgMCAwLTQgNHYyIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ii8+PC9zdmc+"; }
     });
 }
 window.controlCrono = function(act) {
@@ -324,6 +391,10 @@ window.controlCrono = function(act) {
                     if(!partidoLive.minutosJugados[partidoLive.porteroActualId]) partidoLive.minutosJugados[partidoLive.porteroActualId] = 0;
                     partidoLive.minutosJugados[partidoLive.porteroActualId] += delta;
                     c.lastUpdate = now;
+                    // Update UI Minutos
+                    const m = Math.floor(partidoLive.minutosJugados[partidoLive.porteroActualId] / 60);
+                    const elM = document.getElementById('live-minutos');
+                    if(elM) elM.innerText = `⏱️ ${m}'`;
                 }
             }
         }, 1000);
@@ -342,9 +413,7 @@ window.regEv = function(tipo, nom, res=null, obs=null) {
     partidoLive.acciones.push(ev);
     const log = document.getElementById('live-log'); let cl='',ic='';
     if(tipo==='ACCION'){cl=res==='CORRECTO'?'log-ok':'log-error';ic=res==='CORRECTO'?'✅':'❌';}
-    if(tipo==='GOL_FAVOR'){cl='log-gol-atm';ic='⚽';}
-    if(tipo==='GOL_CONTRA'){cl='log-gol-rival';ic='🥅';}
-    if(tipo==='GOL_ANULADO'){cl='log-anulado';ic='🚫';}
+    if(tipo==='GOL_FAVOR'){cl='log-gol-atm';ic='⚽';} if(tipo==='GOL_CONTRA'){cl='log-gol-rival';ic='🥅';} if(tipo==='GOL_ANULADO'){cl='log-anulado';ic='🚫';}
     if(tipo==='HITO') { log.innerHTML=`<div class="log-item" style="background:#444;color:white;justify-content:center;"><strong>${nom}</strong></div>` + log.innerHTML; } 
     else { log.innerHTML=`<div class="log-item ${cl}"><div><strong>${ev.min}</strong> ${nom} (${ev.pnom})</div><div>${ic}</div></div>`+log.innerHTML; }
     guardarEstadoLive();
@@ -358,7 +427,9 @@ window.renderizarPanelAcciones = function() {
     Object.keys(gr).forEach(gName => {
         const tit = document.createElement('div'); tit.className='action-group-title'; tit.innerText=gName; panel.appendChild(tit);
         const grid = document.createElement('div'); grid.className='actions-grid-new';
-        gr[gName].forEach(act => { const b = document.createElement('button'); b.innerText=act; b.className=`action-btn-new btn-${catId}`; b.onclick = () => window.prepararAccion(act); grid.appendChild(b); });
+        // MOSTRAR TAMBIEN ACCIONES PERSONALIZADAS SI EXISTEN
+        let acciones = gr[gName];
+        acciones.forEach(act => { const b = document.createElement('button'); b.innerText=act; b.className=`action-btn-new btn-${catId}`; b.onclick = () => window.prepararAccion(act); grid.appendChild(b); });
         panel.appendChild(grid);
     });
 }
@@ -408,7 +479,7 @@ window.abrirModalFin = function() {
     db.collection("porteros").get().then(snap => {
         const ps = []; snap.forEach(d => ps.push({...d.data(), id:d.id}));
         partidoLive.porterosJugaron.forEach(pid => {
-            const p = ps.find(x => x.id === pid);
+            const p = ps.find(x => x.id == pid);
             if(p) { cont.innerHTML += `<div class="pdf-obs-box"><div class="pdf-obs-header">ANÁLISIS: ${p.nombre}</div><textarea id="pos_${pid}" class="pdf-input-read" placeholder="Lo POSITIVO..."></textarea><textarea id="neg_${pid}" class="pdf-input-read" placeholder="Lo NEGATIVO..."></textarea><textarea id="tras_${pid}" class="pdf-input-read" placeholder="Trascendencia..."></textarea></div>`; }
         });
         document.getElementById('modal-fin-partido').style.display='flex'; localStorage.removeItem('guardian_live_backup');
@@ -455,8 +526,8 @@ window.prepararVistaPreviaPDF = function() {
 function generarHTMLPartido(datos, listaP, anaData) {
     const cfg = datos.config; let porterosHTML = ''; let analisisHTML = '';
     datos.porterosJugaron.forEach(pid => {
-        const p = listaP.find(x => x.id === pid); if(!p) return;
-        const acs = datos.acciones.filter(a => a.pid === pid && a.tipo === 'ACCION');
+        const p = listaP.find(x => x.id == pid); if(!p) return;
+        const acs = datos.acciones.filter(a => a.pid == pid && a.tipo === 'ACCION');
         const ok = acs.filter(a => a.res === 'CORRECTO').length; const perc = acs.length ? Math.round((ok/acs.length)*100) : 0;
         const mins = Math.ceil((datos.minutosJugados[pid] || 0)/60);
         const foto = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4=";
@@ -475,9 +546,8 @@ function generarHTMLPartido(datos, listaP, anaData) {
             cronoHTML += `<tr class="${cl}"><td><strong>${ev.min}</strong></td><td class="pdf-crono-evento">${ev.nom}</td><td>${ev.pnom}</td><td>${resTxt}</td><td style="font-size:10px;">${ev.obs||''}</td></tr>`;
         }
     });
-    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${datos.config.equipo}</td><td><strong>Rival:</strong> ${datos.config.rival}</td><td><strong>Res:</strong> <span style="color:red;font-weight:bold">${datos.marcador.local}-${datos.marcador.rival}</span></td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">CRONOLOGÍA</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS</h3>${analisisHTML}</div></div>`;
+    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${datos.config.equipo}</td><td><strong>Categoría:</strong> ${datos.config.tipo}</td><td><strong>Tipo:</strong> ${datos.config.tipo}</td><td><strong>Jornada:</strong> ${datos.config.jornada}</td></tr><tr><td><strong>Rival:</strong> ${datos.config.rival}</td><td><strong>Fecha:</strong> ${datos.config.fecha}</td><td><strong>Dificultad:</strong> ${datos.config.dificultad}</td><td><strong>Entrenador:</strong> ${datos.config.entrenador}</td></tr><tr><td><strong>Campo:</strong> ${datos.config.campo}</td><td><strong>Condición:</strong> ${datos.config.condicion}</td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.local}</span> - <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.rival}</span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3>${analisisHTML}</div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div>`;
 }
-
 window.imprimirPDFNativo = function() { window.print(); }
 function cargarPartidosHistorial() {
     db.collection("partidos").orderBy("timestamp", "desc").onSnapshot(snap => {
@@ -497,7 +567,7 @@ window.abrirEdicionAnalisis = function(id) {
         db.collection("porteros").get().then(snap => {
             const ps = []; snap.forEach(d => ps.push({...d.data(), id:d.id}));
             partidoEnEdicion.raw.porterosJugaron.forEach(pid => {
-                const p = ps.find(x => x.id === pid); const nombre = p ? p.nombre : "Portero";
+                const p = ps.find(x => x.id == pid); const nombre = p ? p.nombre : "Portero";
                 const ana = partidoEnEdicion.raw.analisis[pid] || {pos:'', neg:'', tras:''};
                 container.innerHTML += `<div class="pdf-obs-box"><div class="pdf-obs-header">EDITAR: ${nombre}</div><textarea id="edit_pos_${pid}" class="pdf-input-read" placeholder="Positivo...">${ana.pos}</textarea><textarea id="edit_neg_${pid}" class="pdf-input-read" placeholder="Negativo...">${ana.neg}</textarea><textarea id="edit_tras_${pid}" class="pdf-input-read" placeholder="Trascendencia...">${ana.tras}</textarea></div>`;
             });
