@@ -1,9 +1,57 @@
-// --- VARIABLES GLOBALES INICIALES (PARA EVITAR ERRORES DE ORDEN) ---
+// --- FUNCIONES GLOBALES ---
+function cerrarModal(id){ document.getElementById(id).style.display='none'; }
+
+// --- CONFIGURACIÓN BASE DE DATOS ---
 const DB_NAME = 'GuardianProDB';
 const DB_VERSION = 1;
 let db;
 
-// Estructura Partido
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('porteros')) db.createObjectStore('porteros', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('partidos')) db.createObjectStore('partidos', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('seguimientos')) db.createObjectStore('seguimientos', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('reportes')) db.createObjectStore('reportes', { keyPath: 'id' });
+        };
+        request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        request.onerror = (e) => { console.error("DB Error", e); resolve(null); };
+    });
+}
+
+// HELPERS DB
+function dbSave(storeName, data) {
+    if(!db) return Promise.resolve(false);
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.put(data);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(false);
+    });
+}
+function dbGetAll(storeName) {
+    if(!db) return Promise.resolve([]);
+    return new Promise((resolve) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve([]);
+    });
+}
+function dbDelete(storeName, id) {
+    if(!db) return Promise.resolve(false);
+    return new Promise((resolve) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).delete(id);
+        tx.oncomplete = () => resolve();
+    });
+}
+
+// --- VARIABLES GLOBALES ---
 let partidoLive = { 
     config: {}, 
     acciones: [], 
@@ -14,8 +62,12 @@ let partidoLive = {
     parteActual: 'Pre-Partido', 
     crono: { seg: 0, int: null, run: false, startTs: 0, savedSeg: 0, lastUpdate: 0 } 
 };
+let accionTemporal = null;
+let porteroEnEdicionId = null;
+let evaluacionesTemporales = [];
+let competenciaSeleccionada = null; 
+let partidoEnEdicion = null;
 
-// --- CONSTANTES CATÁLOGO ---
 const CATALOGO_ACCIONES = {
     "DEFENSIVAS": { id: "def", grupos: { "BLOCAJES": ["Blocaje Frontal Raso", "Blocaje Lateral Raso", "Blocaje Frontal Media Altura", "Blocaje Lateral Media Altura", "Blocaje Aéreo"], "DESVÍOS": ["Desvío Mano Natural", "Desvío Mano Cambiada", "Desvío 2 Manos"], "JUEGO AÉREO": ["Despeje 1 Puño", "Despeje 2 Puños", "Prolongación"], "1 VS 1": ["Reducción de Espacios", "Posición Cruz", "Apertura", "Caída Lateral"], "OTRAS": ["Rechace"] } },
     "OFENSIVAS": { id: "of", grupos: { "PASES CON LA MANO": ["Pase Mano Raso", "Pase Mano Alto", "Pase Mano Picado"], "PASES CON PIE": ["Volea", "Pase Corto", "Pase Largo", "Despeje", "Despeje Orientado"], "CONTINUIDAD": ["Perfil + Control + Pase Corto", "Perfil + Control + Pase Largo", "Largo Control Previo", "Largo en Movimiento"] } },
@@ -29,119 +81,16 @@ const ACCIONES_EVALUACION = {
 };
 
 let categoriaAccionActiva = "DEFENSIVAS";
-let accionTemporal = null;
-let porteroEnEdicionId = null;
-let evaluacionesTemporales = [];
-let competenciaSeleccionada = null; 
-let partidoEnEdicion = null;
-
-// --- FUNCIONES CRÍTICAS (PRIMERO PARA EVITAR ERRORES) ---
-function cerrarModal(id){
-    document.getElementById(id).style.display='none';
-}
-
-function iniciarLivePro() { 
-    // Captura datos del formulario
-    const eq = document.getElementById('conf-equipo').value;
-    const riv = document.getElementById('conf-rival').value;
-    const tit = parseInt(document.getElementById('conf-portero-titular').value);
-
-    if(!eq || !riv || !tit) return alert("⚠️ Faltan datos (Equipo, Rival o Portero Titular).");
-
-    const cfg = { 
-        equipo: eq, 
-        tipo: document.getElementById('conf-tipo').value, 
-        titular: tit, 
-        rival: riv, 
-        fecha: document.getElementById('conf-fecha').value, 
-        jornada: document.getElementById('conf-jornada').value, 
-        dificultad: document.getElementById('conf-dificultad').value, 
-        entrenador: document.getElementById('conf-entrenador').value, 
-        campo: document.getElementById('conf-campo').value, 
-        condicion: document.getElementById('conf-condicion').value 
-    }; 
-    
-    localStorage.removeItem('guardian_live_backup');
-
-    if(partidoLive.crono.int) clearInterval(partidoLive.crono.int); 
-    
-    partidoLive = { 
-        config: cfg, 
-        acciones: [], 
-        marcador: {local:0, rival:0}, 
-        porterosJugaron: new Set([cfg.titular]), 
-        minutosJugados: {}, 
-        porteroActualId: cfg.titular, 
-        parteActual: 'Pre-Partido', 
-        crono: { seg: 0, int: null, run: false, startTs: 0, savedSeg: 0, lastUpdate: 0 } 
-    }; 
-    
-    partidoLive.minutosJugados[cfg.titular] = 0; 
-    
-    document.getElementById('live-equipo-local').innerText = cfg.equipo; 
-    document.getElementById('live-equipo-rival').innerText = cfg.rival; 
-    document.getElementById('score-local').innerText = '0'; 
-    document.getElementById('score-rival').innerText = '0'; 
-    document.getElementById('crono').innerText = '00:00'; 
-    document.getElementById('live-log').innerHTML = ''; 
-    
-    actualizarUI(); 
-    categoriaAccionActiva = "DEFENSIVAS"; 
-    renderizarPanelAcciones(); 
-    cerrarModal('modal-config-partido'); 
-    cambiarSeccion('live'); 
-    guardarEstadoLive();
-}
-
-// --- BASE DE DATOS (IndexedDB) ---
-function initDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = (e) => {
-            db = e.target.result;
-            ['porteros','partidos','seguimientos','reportes'].forEach(s => {
-                if(!db.objectStoreNames.contains(s)) db.createObjectStore(s, {keyPath:'id'});
-            });
-        };
-        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
-        req.onerror = (e) => { console.error("DB Error", e); resolve(null); };
-    });
-}
-
-function dbSave(store, data) {
-    if(!db) return Promise.resolve(false);
-    return new Promise(res => {
-        const tx = db.transaction(store, 'readwrite');
-        tx.objectStore(store).put(data);
-        tx.oncomplete = () => res(true);
-        tx.onerror = () => res(false);
-    });
-}
-function dbGetAll(store) {
-    if(!db) return Promise.resolve([]);
-    return new Promise(res => {
-        const tx = db.transaction(store, 'readonly');
-        const req = tx.objectStore(store).getAll();
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => res([]);
-    });
-}
-function dbDelete(store, id) {
-    if(!db) return Promise.resolve(false);
-    return new Promise(res => {
-        const tx = db.transaction(store, 'readwrite');
-        tx.objectStore(store).delete(id);
-        tx.oncomplete = () => res(true);
-    });
-}
 
 // --- INICIO ---
 document.addEventListener('DOMContentLoaded', async () => {
-    try { await initDB(); } catch(e){}
-    cargarPorteros();
-    cargarHistorialReportes(); 
-    cargarPartidosHistorial();
-    recuperarPartidoEnCurso();
+    try {
+        await initDB();
+        cargarPorteros();
+        cargarHistorialReportes(); 
+        cargarPartidosHistorial();
+        recuperarPartidoEnCurso();
+    } catch(e) { console.log(e); }
 
     const today = new Date().toISOString().split('T')[0];
     const fConf = document.getElementById('conf-fecha'); if(fConf) fConf.value=today;
@@ -186,7 +135,7 @@ async function cargarPorteros(){
     const c=document.getElementById('lista-porteros'); 
     if(c){ 
         c.innerHTML=''; 
-        const def="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIwIDIxdi0yYTQgNCAwIDAgMC00LTRoLThhNCA0IDAgMCAwLTQgNHYyIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ii8+PC9zdmc+"; 
+        const def="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4="; 
         l.forEach(p=>{ 
             c.innerHTML+=`<div class="portero-card"><div style="display:flex; align-items:center;"><img src="${p.foto||def}" class="mini-foto-list"><div><div class="card-title">${p.nombre}</div><div class="card-subtitle">${p.equipo} (${p.anio||'-'})</div></div></div><div><button class="btn-icon-action" onclick="cargarDatosEdicion(${p.id})" style="border-color:#00ff88; color:#00ff88; margin-right:5px;">✏️</button><button class="btn-trash" onclick="borrarPortero(${p.id})">🗑️</button></div></div>`; 
         }); 
