@@ -14,6 +14,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,7 +27,7 @@
             <img src="ESCUDO ATM.png" alt="ATM" class="escudo-img">
             <div class="header-text">
                 <h1>Guardian<span class="highlight">Lab</span></h1>
-                <p>ATM Goalkeepers Pro</p>
+                <p>ATM Goalkeepers Pro (Cloud)</p>
             </div>
         </div>
         <button class="theme-toggle" onclick="alternarTema()" title="Cambiar Tema">☀️</button>
@@ -42,7 +47,7 @@
                 <input type="text" id="nombrePortero" placeholder="Nombre y Apellidos" style="margin-top:15px;">
                 <div class="row">
                     <input type="number" id="anioPortero" placeholder="Año Nac." style="flex:1">
-                    <select id="catPortero" onchange="actualizarEquipos()" onblur="actualizarEquipos()" style="flex:2">
+                    <select id="catPortero" onchange="actualizarEquipos()" style="flex:2">
                         <option value="">Categoría...</option>
                         <option value="Prebenjamín">Prebenjamín</option><option value="Benjamín">Benjamín</option><option value="Alevín">Alevín</option><option value="Alevín F7">Alevín F7</option><option value="Infantil">Infantil</option><option value="Cadete">Cadete</option><option value="Juvenil">Juvenil</option>
                     </select>
@@ -51,7 +56,7 @@
                 <button onclick="procesarPortero()" id="btn-save" class="btn-main">Añadir Jugador</button>
                 <button onclick="cancelarEdicion()" id="btn-cancel" class="btn-main" style="display:none; background:#555; margin-top:10px;">Cancelar Edición</button>
             </div>
-            <div id="lista-porteros" class="list-vertical"></div>
+            <div id="lista-porteros" class="list-vertical"><div style="text-align:center; padding:20px; color:#aaa;">Cargando nube...</div></div>
         </section>
 
         <section id="section-sesiones" class="fade-in" style="display:none;">
@@ -141,30 +146,13 @@
     
     <div id="modal-editar-analisis" class="modal"><div class="modal-content modern-card" style="max-width:600px"><span class="close-btn" onclick="cerrarModal('modal-editar-analisis')">&times;</span><h3>Editar Análisis Técnico</h3><div id="container-editar-analisis" style="max-height: 400px; overflow-y:auto; margin-bottom:15px;"></div><button onclick="guardarEdicionAnalisis()" class="btn-main" style="background: var(--atm-blue)">💾 Guardar Cambios</button></div></div>
 
-    <div id="modal-pdf-preview" class="modal" style="background: rgba(10,10,10,0.98); z-index: 2000;">
-        <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;"><div style="width:100%; display:flex; justify-content:center; align-items:center; padding:15px; background:#111; border-bottom:1px solid #333;"><h3 style="color:white; margin:0 20px 0 0;">Vista Previa</h3><button onclick="imprimirPDFNativo()" class="btn-main" style="width:auto; padding:10px 25px; background:white; color:black; font-weight:bold; margin-right:10px;">🖨️ IMPRIMIR / GUARDAR</button><button onclick="cerrarModal('modal-pdf-preview')" class="btn-small-red">Cerrar</button></div><div style="flex:1; overflow-y:auto; background:#555; width:100%; display:flex; justify-content:center; padding:40px;"><div id="preview-content"></div></div></div>
-    </div>
+    <div id="modal-pdf-preview" class="modal" style="background: rgba(10,10,10,0.98); z-index: 2000;"><div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;"><div style="width:100%; display:flex; justify-content:center; align-items:center; padding:15px; background:#111; border-bottom:1px solid #333;"><h3 style="color:white; margin:0 20px 0 0;">Vista Previa</h3><button onclick="imprimirPDFNativo()" class="btn-main" style="width:auto; padding:10px 25px; background:white; color:black; font-weight:bold; margin-right:10px;">🖨️ IMPRIMIR / GUARDAR</button><button onclick="cerrarModal('modal-pdf-preview')" class="btn-small-red">Cerrar</button></div><div style="flex:1; overflow-y:auto; background:#555; width:100%; display:flex; justify-content:center; padding:40px;"><div id="preview-content"></div></div></div></div>
 
-    <nav class="floating-nav">
-        <button onclick="cambiarSeccion('porteros')" id="btn-porteros" class="active">Porteros</button>
-        <button onclick="cambiarSeccion('sesiones')" id="btn-sesiones">Objetivos</button>
-        <button onclick="cambiarSeccion('partidos')" id="btn-partidos">Partidos</button>
-        <button onclick="cambiarSeccion('datos')" id="btn-datos">Datos</button>
-    </nav>
+    <nav class="floating-nav"><button onclick="cambiarSeccion('porteros')" id="btn-porteros" class="active">Porteros</button><button onclick="cambiarSeccion('sesiones')" id="btn-sesiones">Objetivos</button><button onclick="cambiarSeccion('partidos')" id="btn-partidos">Partidos</button><button onclick="cambiarSeccion('datos')" id="btn-datos">Datos</button></nav>
     <div id="printable-area" class="printable-hidden"></div>
+    <div id="plantilla-pdf-pro" style="display:none;"><div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo" alt="ATM"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> <span id="print-equipo"></span></td><td><strong>Categoría:</strong> <span id="print-categoria"></span></td><td><strong>Tipo:</strong> <span id="print-tipo"></span></td><td><strong>Jornada:</strong> <span id="print-jornada"></span></td></tr><tr><td><strong>Rival:</strong> <span id="print-rival"></span></td><td><strong>Fecha:</strong> <span id="print-fecha"></span></td><td><strong>Dificultad:</strong> <span id="print-dificultad"></span></td><td><strong>Entrenador:</strong> <span id="print-entrenador"></span></td></tr><tr><td><strong>Campo:</strong> <span id="print-campo"></span></td><td><strong>Condición:</strong> <span id="print-condicion"></span></td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span id="print-res-local" style="color:#CB3524; font-size:16px; font-weight:bold"></span> - <span id="print-res-rival" style="color:#CB3524; font-size:16px; font-weight:bold"></span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3><div id="print-porteros-stats"></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th width="8%">Min</th><th width="35%">Acción</th><th width="20%">Portero</th><th width="12%">Calif.</th><th width="25%">Obs.</th></tr></thead><tbody id="print-cronologia-body"></tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3><div id="print-analisis-individual"></div></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div></div>
     
-    <div id="plantilla-pdf-pro" style="display:none;">
-        <div class="pdf-container">
-            <div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo" alt="ATM"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div>
-            <div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> <span id="print-equipo"></span></td><td><strong>Categoría:</strong> <span id="print-categoria"></span></td><td><strong>Tipo:</strong> <span id="print-tipo"></span></td><td><strong>Jornada:</strong> <span id="print-jornada"></span></td></tr><tr><td><strong>Rival:</strong> <span id="print-rival"></span></td><td><strong>Fecha:</strong> <span id="print-fecha"></span></td><td><strong>Dificultad:</strong> <span id="print-dificultad"></span></td><td><strong>Entrenador:</strong> <span id="print-entrenador"></span></td></tr><tr><td><strong>Campo:</strong> <span id="print-campo"></span></td><td><strong>Condición:</strong> <span id="print-condicion"></span></td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span id="print-res-local" style="color:#CB3524; font-size:16px; font-weight:bold"></span> - <span id="print-res-rival" style="color:#CB3524; font-size:16px; font-weight:bold"></span> RIVAL</td></tr></table></div>
-            <div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3><div id="print-porteros-stats"></div></div>
-            <div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th width="8%">Min</th><th width="35%">Acción</th><th width="20%">Portero</th><th width="12%">Calif.</th><th width="25%">Obs.</th></tr></thead><tbody id="print-cronologia-body"></tbody></table></div>
-            <div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3><div id="print-analisis-individual"></div></div>
-            <div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div>
-        </div>
-    </div>
-    
-    <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').then(reg=>console.log('SW registrado')).catch(err=>console.log('Error SW',err));});}</script>
     <script src="app.js"></script>
+    <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});}</script>
 </body>
 </html>
