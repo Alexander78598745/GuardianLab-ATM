@@ -72,8 +72,7 @@ window.cambiarSeccion = function(sec) {
     document.getElementById('section-'+sec).style.display = 'block';
     const btnDest = document.getElementById('btn-'+sec);
     if(btnDest) btnDest.classList.add('active');
-
-    // MOSTRAR BANNER LIVE SI HAY PARTIDO (CORRECCION)
+    
     const banner = document.getElementById('live-match-banner');
     if(banner){
         if(sec !== 'live' && partidoLive.parteActual !== 'Pre-Partido' && partidoLive.parteActual !== 'Final'){
@@ -83,7 +82,6 @@ window.cambiarSeccion = function(sec) {
         }
     }
 }
-
 window.cerrarModal = function(id) { document.getElementById(id).style.display='none'; }
 
 // --- PORTEROS ---
@@ -126,29 +124,39 @@ window.procesarPortero = function() {
     const c = document.getElementById('catPortero').value;
     const eq = document.getElementById('equipoPortero').value;
     const file = document.getElementById('fotoPorteroInput').files[0];
+
     if(!n || !c || !eq) return alert("Faltan datos");
+    
     const btn = document.getElementById('btn-save');
     btn.innerText = "Guardando..."; btn.disabled = true;
+
     const guardar = (url) => {
         const data = { nombre:n, anio:a, categoria:c, equipo:eq };
         if(url) data.foto = url;
         const prom = porteroEnEdicionId ? db.collection("porteros").doc(porteroEnEdicionId).update(data) : db.collection("porteros").add(data);
         prom.then(() => { window.cancelarEdicion(); }).catch(e => alert("Error: " + e.message)).finally(() => { btn.innerText = "Añadir Jugador"; btn.disabled = false; });
     };
+
     if(file) {
+        // COMPRESIÓN DE IMAGEN PARA TABLET
         const r = new FileReader();
         r.onload = (e) => {
-            const img = new Image(); img.src = e.target.result;
+            const img = new Image();
+            img.src = e.target.result;
             img.onload = () => {
                 const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-                const max = 200; let w = img.width; let h = img.height;
+                const max = 300; 
+                let w = img.width; let h = img.height;
                 if(w>h){ if(w>max){ h*=max/w; w=max; } } else { if(h>max){ w*=max/h; h=max; } }
-                canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
+                canvas.width = w; canvas.height = h;
+                ctx.drawImage(img, 0, 0, w, h);
                 guardar(canvas.toDataURL('image/jpeg', 0.5));
             };
         };
         r.readAsDataURL(file);
-    } else { guardar(null); }
+    } else {
+        guardar(null);
+    }
 }
 window.cargarDatosEdicion = function(id) {
     db.collection("porteros").doc(id).get().then(doc => {
@@ -168,7 +176,7 @@ window.cancelarEdicion = function() {
 }
 window.borrarPortero = function(id) { if(confirm("¿Borrar?")) db.collection("porteros").doc(id).delete(); }
 
-// --- OBJETIVOS ---
+// --- OBJETIVOS (LISTA LIMPIA) ---
 window.resetearEvaluacionTemporal = function() {
     evaluacionesTemporales = []; competenciaSeleccionada = null; window.selectCompetencia(null);
     window.renderizarListaTemporal(); document.getElementById('contenedor-evaluacion-temporal').style.display = 'none'; window.cargarAccionesObjetivos();
@@ -210,30 +218,31 @@ window.guardarReporteCompleto = function() {
         const batch = db.batch();
         evaluacionesTemporales.forEach(item => {
             const ref = db.collection("seguimientos").doc();
-            // GUARDAR PORTEROID COMO ENTERO (PARSEINT) PARA QUE LA GRÁFICA LO LEA BIEN
             batch.set(ref, { porteroId: pid, fecha: fecha, accion: item.accion, competencia: item.competencia, puntaje: item.puntaje, reporteId: docRef.id });
         });
         batch.commit(); generarPDFReporteLote(reporte); window.resetearEvaluacionTemporal();
     });
 }
+// FIX PDF: TÍTULO Y NOTA MEDIA
 function generarPDFReporteLote(reporte) {
     db.collection("porteros").doc(reporte.porteroId).get().then(doc => {
         const p = doc.data(); const foto = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4=";
-        let filas = '';
+        let filas = ''; let sum = 0;
         reporte.acciones.forEach(item => {
+            sum += parseInt(item.puntaje);
             let bg='#ccc', fg='white', label='';
             if(item.competencia===1){bg='#E74C3C';label='INCOMP. INCONSCIENTE';} if(item.competencia===2){bg='#E67E22';label='INCOMP. CONSCIENTE';}
             if(item.competencia===3){bg='#F1C40F';label='COMP. CONSCIENTE';fg='black';} if(item.competencia===4){bg='#27AE60';label='COMP. INCONSCIENTE';}
             filas += `<tr><td style="padding:8px; border-bottom:1px solid #eee;">${item.accion}</td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center;"><span style="background:${bg}; color:${fg}; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${label}</span></td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">${item.puntaje}</td></tr>`;
         });
-        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO TÉCNICO</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
+        const media = (sum / reporte.acciones.length).toFixed(1);
+        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE OBJETIVOS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p><p style="margin-top:5px; font-size:1.1em; color:#1C2C5B;"><strong>Nota Media Seguimiento: ${media}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
         document.getElementById('preview-content').innerHTML = html; document.getElementById('printable-area').innerHTML = html; document.getElementById('modal-pdf-preview').style.display = 'flex';
     });
 }
 function cargarHistorialReportes() {
     db.collection("reportes").orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
-        const cont = document.getElementById('lista-seguimientos'); 
-        cont.innerHTML = ''; // LIMPIAR PARA EVITAR DUPLICADOS (CORREGIDO)
+        const cont = document.getElementById('lista-seguimientos'); cont.innerHTML = ''; // LIMPIEZA
         snap.forEach(doc => {
             const rep = doc.data();
             db.collection("porteros").doc(rep.porteroId).get().then(pDoc => {
@@ -243,27 +252,23 @@ function cargarHistorialReportes() {
     });
 }
 window.verPDFReporteObj = function(id) { db.collection("reportes").doc(id).get().then(doc => { if(doc.exists) generarPDFReporteLote(doc.data()); }); }
-window.borrarReporte = function(id) { if(confirm("¿Borrar?")) db.collection("reportes").doc(id).delete(); }
-
-// CORRECCIÓN NOTA MEDIA (DATOS)
+// FIX DATOS FANTASMA: BORRAR HIJOS
+window.borrarReporte = function(id) { 
+    if(confirm("¿Borrar?")) {
+        db.collection("reportes").doc(id).delete();
+        db.collection("seguimientos").where("reporteId", "==", id).get().then(snap => {
+            const batch = db.batch();
+            snap.forEach(doc => batch.delete(doc.ref));
+            batch.commit();
+        });
+    }
+}
 window.actualizarGrafica = function() {
-    const pid = document.getElementById('select-stats-portero').value; 
-    if(!pid) return;
-    
-    // Aquí el pid es string, en DB puede ser string.
-    db.collection("seguimientos").where("porteroId", "==", pid).get().then(snap => {
+    const pid = document.getElementById('select-stats-portero').value; if(!pid) return;
+    db.collection("seguimientos").where("porteroId", "==", pid).orderBy("fecha").limit(50).get().then(snap => {
         const dataPoints = []; const labels = []; let total = 0;
-        const evs = [];
-        snap.forEach(doc => evs.push(doc.data()));
-        
-        // Ordenar por fecha en JS para evitar indice compuesto
-        evs.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-        
-        evs.forEach(d => { dataPoints.push(d.puntaje); labels.push(d.fecha.substring(5)); total += d.puntaje; });
-        
-        document.getElementById('kpi-media').innerText = dataPoints.length ? (total/dataPoints.length).toFixed(1) : "-"; 
-        document.getElementById('kpi-clean-sheets').innerText = dataPoints.length;
-        
+        snap.forEach(doc => { const d = doc.data(); dataPoints.push(d.puntaje); labels.push(d.fecha.substring(5)); total += d.puntaje; });
+        document.getElementById('kpi-media').innerText = dataPoints.length ? (total/dataPoints.length).toFixed(1) : "-"; document.getElementById('kpi-clean-sheets').innerText = dataPoints.length;
         const ctx = document.getElementById('graficaRendimiento').getContext('2d'); if(window.myChart) window.myChart.destroy();
         window.myChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Puntaje', data: dataPoints, borderColor: '#CB3524', backgroundColor: 'rgba(203,53,36,0.1)', tension: 0.4, fill: true }] }, options: { scales: { y: { min: 0, max: 5 } } } });
     });
@@ -324,9 +329,7 @@ window.controlCrono = function(act) {
         }, 1000);
         partidoLive.parteActual = (act === 'start') ? '1ª Parte' : '2ª Parte'; window.regEv('HITO', partidoLive.parteActual);
     }
-    if(act === 'fin1' || act === 'fin') {
-        clearInterval(c.int); c.run = false; c.savedSeg = c.seg; partidoLive.parteActual = (act === 'fin1') ? 'Descanso' : 'Final'; window.regEv('HITO', partidoLive.parteActual); if(act === 'fin') window.abrirModalFin();
-    }
+    if(act === 'fin1' || act === 'fin') { clearInterval(c.int); c.run = false; c.savedSeg = c.seg; partidoLive.parteActual = (act === 'fin1') ? 'Descanso' : 'Final'; window.regEv('HITO', partidoLive.parteActual); if(act === 'fin') window.abrirModalFin(); }
     guardarEstadoLive();
     ['btn-start-partido','btn-fin-1','btn-ini-2','btn-fin-partido'].forEach(i=>document.getElementById(i).style.display='none');
     if(act==='start') document.getElementById('btn-fin-1').style.display='block'; if(act==='fin1') document.getElementById('btn-ini-2').style.display='block'; if(act==='ini2') document.getElementById('btn-fin-partido').style.display='block';
@@ -405,7 +408,7 @@ window.abrirModalFin = function() {
     db.collection("porteros").get().then(snap => {
         const ps = []; snap.forEach(d => ps.push({...d.data(), id:d.id}));
         partidoLive.porterosJugaron.forEach(pid => {
-            const p = ps.find(x => x.id == pid); // == para compatibilidad
+            const p = ps.find(x => x.id === pid);
             if(p) { cont.innerHTML += `<div class="pdf-obs-box"><div class="pdf-obs-header">ANÁLISIS: ${p.nombre}</div><textarea id="pos_${pid}" class="pdf-input-read" placeholder="Lo POSITIVO..."></textarea><textarea id="neg_${pid}" class="pdf-input-read" placeholder="Lo NEGATIVO..."></textarea><textarea id="tras_${pid}" class="pdf-input-read" placeholder="Trascendencia..."></textarea></div>`; }
         });
         document.getElementById('modal-fin-partido').style.display='flex'; localStorage.removeItem('guardian_live_backup');
@@ -449,13 +452,11 @@ window.prepararVistaPreviaPDF = function() {
         window.cerrarModal('modal-fin-partido'); window.cambiarSeccion('partidos');
     });
 }
-
-// --- PDF RESTAURADO DISEÑO ORIGINAL ---
 function generarHTMLPartido(datos, listaP, anaData) {
     const cfg = datos.config; let porterosHTML = ''; let analisisHTML = '';
     datos.porterosJugaron.forEach(pid => {
-        const p = listaP.find(x => x.id == pid); if(!p) return;
-        const acs = datos.acciones.filter(a => a.pid == pid && a.tipo === 'ACCION');
+        const p = listaP.find(x => x.id === pid); if(!p) return;
+        const acs = datos.acciones.filter(a => a.pid === pid && a.tipo === 'ACCION');
         const ok = acs.filter(a => a.res === 'CORRECTO').length; const perc = acs.length ? Math.round((ok/acs.length)*100) : 0;
         const mins = Math.ceil((datos.minutosJugados[pid] || 0)/60);
         const foto = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4=";
@@ -474,7 +475,7 @@ function generarHTMLPartido(datos, listaP, anaData) {
             cronoHTML += `<tr class="${cl}"><td><strong>${ev.min}</strong></td><td class="pdf-crono-evento">${ev.nom}</td><td>${ev.pnom}</td><td>${resTxt}</td><td style="font-size:10px;">${ev.obs||''}</td></tr>`;
         }
     });
-    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1 style="color:#CB3524;font-weight:800;margin:0;">ATLÉTICO DE MADRID</h1><h2 style="color:#1C2C5B;margin:5px 0 0 0;font-size:16px;">SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${cfg.equipo}</td><td><strong>Categoría:</strong> ${cfg.tipo}</td><td><strong>Tipo:</strong> ${cfg.tipo}</td><td><strong>Jornada:</strong> ${cfg.jornada}</td></tr><tr><td><strong>Rival:</strong> ${cfg.rival}</td><td><strong>Fecha:</strong> ${cfg.fecha}</td><td><strong>Dificultad:</strong> ${cfg.dificultad}</td><td><strong>Entrenador:</strong> ${cfg.entrenador}</td></tr><tr><td><strong>Campo:</strong> ${cfg.campo}</td><td><strong>Condición:</strong> ${cfg.condicion}</td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.local}</span> - <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.rival}</span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3>${analisisHTML}</div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div>`;
+    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${datos.config.equipo}</td><td><strong>Rival:</strong> ${datos.config.rival}</td><td><strong>Res:</strong> <span style="color:red;font-weight:bold">${datos.marcador.local}-${datos.marcador.rival}</span></td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">CRONOLOGÍA</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS</h3>${analisisHTML}</div></div>`;
 }
 
 window.imprimirPDFNativo = function() { window.print(); }
@@ -496,7 +497,7 @@ window.abrirEdicionAnalisis = function(id) {
         db.collection("porteros").get().then(snap => {
             const ps = []; snap.forEach(d => ps.push({...d.data(), id:d.id}));
             partidoEnEdicion.raw.porterosJugaron.forEach(pid => {
-                const p = ps.find(x => x.id == pid); const nombre = p ? p.nombre : "Portero";
+                const p = ps.find(x => x.id === pid); const nombre = p ? p.nombre : "Portero";
                 const ana = partidoEnEdicion.raw.analisis[pid] || {pos:'', neg:'', tras:''};
                 container.innerHTML += `<div class="pdf-obs-box"><div class="pdf-obs-header">EDITAR: ${nombre}</div><textarea id="edit_pos_${pid}" class="pdf-input-read" placeholder="Positivo...">${ana.pos}</textarea><textarea id="edit_neg_${pid}" class="pdf-input-read" placeholder="Negativo...">${ana.neg}</textarea><textarea id="edit_tras_${pid}" class="pdf-input-read" placeholder="Trascendencia...">${ana.tras}</textarea></div>`;
             });

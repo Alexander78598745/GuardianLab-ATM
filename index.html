@@ -17,6 +17,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -55,7 +56,7 @@
                 <button onclick="window.procesarPortero()" id="btn-save" class="btn-main">Añadir Jugador</button>
                 <button onclick="window.cancelarEdicion()" id="btn-cancel" class="btn-main" style="display:none; background:#555; margin-top:10px;">Cancelar Edición</button>
             </div>
-            <div id="lista-porteros" class="list-vertical"><div style="text-align:center; padding:20px; color:#aaa;">Cargando...</div></div>
+            <div id="lista-porteros" class="list-vertical"><div style="text-align:center; padding:20px; color:#aaa;">Cargando nube...</div></div>
         </section>
 
         <section id="section-sesiones" class="fade-in" style="display:none;">
@@ -147,7 +148,6 @@
 
     <nav class="floating-nav"><button onclick="window.cambiarSeccion('porteros')" id="btn-porteros" class="active">Porteros</button><button onclick="window.cambiarSeccion('sesiones')" id="btn-sesiones">Objetivos</button><button onclick="window.cambiarSeccion('partidos')" id="btn-partidos">Partidos</button><button onclick="window.cambiarSeccion('datos')" id="btn-datos">Datos</button></nav>
     <div id="printable-area" class="printable-hidden"></div>
-    <div id="plantilla-pdf-pro" style="display:none;"><div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo" alt="ATM"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> <span id="print-equipo"></span></td><td><strong>Categoría:</strong> <span id="print-categoria"></span></td><td><strong>Tipo:</strong> <span id="print-tipo"></span></td><td><strong>Jornada:</strong> <span id="print-jornada"></span></td></tr><tr><td><strong>Rival:</strong> <span id="print-rival"></span></td><td><strong>Fecha:</strong> <span id="print-fecha"></span></td><td><strong>Dificultad:</strong> <span id="print-dificultad"></span></td><td><strong>Entrenador:</strong> <span id="print-entrenador"></span></td></tr><tr><td><strong>Campo:</strong> <span id="print-campo"></span></td><td><strong>Condición:</strong> <span id="print-condicion"></span></td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span id="print-res-local" style="color:#CB3524; font-size:16px; font-weight:bold"></span> - <span id="print-res-rival" style="color:#CB3524; font-size:16px; font-weight:bold"></span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3><div id="print-porteros-stats"></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th width="8%">Min</th><th width="35%">Acción</th><th width="20%">Portero</th><th width="12%">Calif.</th><th width="25%">Obs.</th></tr></thead><tbody id="print-cronologia-body"></tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3><div id="print-analisis-individual"></div></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div></div>
     
     <script src="app.js"></script>
 </body>
