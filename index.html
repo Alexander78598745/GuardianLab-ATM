@@ -27,7 +27,7 @@
             <img src="ESCUDO ATM.png" alt="ATM" class="escudo-img">
             <div class="header-text">
                 <h1>Guardian<span class="highlight">Lab</span></h1>
-                <p>ATM Goalkeepers Pro</p>
+                <p>ATM Goalkeepers Pro (Cloud)</p>
             </div>
         </div>
         <button class="theme-toggle" onclick="window.alternarTema()" title="Cambiar Tema">☀️</button>
@@ -83,6 +83,10 @@
             <div id="contenedor-evaluacion-temporal" style="display:none; margin-bottom: 30px;">
                 <h3 class="section-divider" style="color:#00ff88;">Acciones a Registrar</h3>
                 <div id="lista-temp-evaluaciones" class="list-vertical" style="margin-bottom:15px;"></div>
+                
+                <h3 class="section-divider">Observación final del seguimiento de Objetivos</h3>
+                <textarea id="obj-observacion" class="pdf-input-read" placeholder="Escribe aquí la observación..." style="width:100%; height:80px; margin-bottom:15px;"></textarea>
+
                 <button onclick="window.guardarReporteCompleto()" class="btn-main" style="background: linear-gradient(135deg, #00ff88, #00cc6a); color:black; font-weight:800; font-size: 1.1rem;">💾 GUARDAR Y GENERAR INFORME</button>
             </div>
             <h3 class="section-divider">Historial de Informes</h3>
@@ -150,6 +154,13 @@
             <h3 class="section-divider">Mis Acciones Personalizadas</h3>
             <div id="lista-conceptos-custom" class="list-vertical"></div>
         </section>
+
+        <section id="section-datos" class="fade-in" style="display:none;">
+            <div class="section-header"><h2>Estadísticas</h2></div>
+            <div class="modern-card"><select id="select-stats-portero" onchange="window.actualizarGrafica()" class="full-width"><option value="">-- Elegir Portero --</option></select></div>
+            <div class="kpi-grid"><div class="kpi-card"><div class="kpi-value" id="kpi-media">-</div><div class="kpi-label">Nota Media</div></div><div class="kpi-card"><div class="kpi-value" id="kpi-clean-sheets">-</div><div class="kpi-label">Reportes</div></div></div>
+            <div class="modern-card chart-container"><canvas id="graficaRendimiento"></canvas></div>
+        </section>
     </main>
 
     <div id="modal-config-partido" class="modal">
@@ -175,9 +186,19 @@
         <button onclick="window.cambiarSeccion('sesiones')" id="btn-sesiones">Objetivos</button>
         <button onclick="window.cambiarSeccion('partidos')" id="btn-partidos">Partidos</button>
         <button onclick="window.cambiarSeccion('conceptos')" id="btn-conceptos">+ Conceptos</button>
+        <button onclick="window.cambiarSeccion('datos')" id="btn-datos">Datos</button>
     </nav>
     <div id="printable-area" class="printable-hidden"></div>
     
     <script src="app.js"></script>
+    <script>
+    if('serviceWorker' in navigator){
+        window.addEventListener('load',()=>{
+            navigator.serviceWorker.register('./sw.js')
+            .then(reg=>console.log('SW Registrado'))
+            .catch(err=>console.log('Error SW',err));
+        });
+    }
+    </script>
 </body>
 </html>

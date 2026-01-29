@@ -87,7 +87,7 @@ window.alternarTema = function() { document.body.classList.toggle('light-mode');
 window.cambiarSeccion = function(sec) {
     document.getElementById('modal-pdf-preview').style.display = 'none';
     document.getElementById('modal-fin-partido').style.display = 'none';
-    ['porteros','sesiones','partidos','conceptos','live'].forEach(id => {
+    ['porteros','sesiones','partidos','conceptos','datos','live'].forEach(id => {
         const secEl = document.getElementById('section-'+id);
         const btnEl = document.getElementById('btn-'+id);
         if(secEl) secEl.style.display = 'none';
@@ -113,8 +113,6 @@ function cargarConceptosPersonalizados() {
         const listDiv = document.getElementById('lista-conceptos-custom');
         if(listDiv) listDiv.innerHTML = '';
 
-        // Reset arrays to base state (avoid duplicates on reload)
-        // (Simplified reset logic here)
         CATALOGO_ACCIONES["DEFENSIVAS"].grupos["PERSONALIZADAS"] = [];
         CATALOGO_ACCIONES["OFENSIVAS"].grupos["PERSONALIZADAS"] = [];
         CATALOGO_ACCIONES["TÁCTICAS"].grupos["PERSONALIZADAS"] = [];
@@ -123,8 +121,6 @@ function cargarConceptosPersonalizados() {
         snap.forEach(doc => {
             const c = doc.data();
             let labelType = "";
-
-            // Logic to add to arrays
             if (c.tipo.startsWith("OBJ_")) {
                 const cat = c.tipo.split("_")[1] === "DEF" ? "DEFENSIVAS" : "OFENSIVAS";
                 if (!ACCIONES_EVALUACION[cat].includes(c.nombre)) ACCIONES_EVALUACION[cat].push(c.nombre);
@@ -190,7 +186,7 @@ function cargarPorteros() {
             c.innerHTML += `<div class="portero-card"><div style="display:flex; align-items:center;"><img src="${p.foto||def}" class="mini-foto-list"><div><div class="card-title">${p.nombre}</div><div class="card-subtitle">${p.equipo} (${p.anio||'-'})</div></div></div><div><button class="btn-icon-action" onclick="window.cargarDatosEdicion('${p.id}')">✏️</button><button class="btn-trash" onclick="window.borrarPortero('${p.id}')">🗑️</button></div></div>`;
         });
         const opts = '<option value="">Seleccionar...</option>' + lista.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
-        ['obj-portero', 'conf-portero-titular'].forEach(id => {
+        ['obj-portero', 'conf-portero-titular', 'select-stats-portero'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.innerHTML = opts;
         });
@@ -216,6 +212,7 @@ window.procesarPortero = function() {
     };
 
     if(file) {
+        // COMPRESOR (SOLUCIÓN TABLET)
         const r = new FileReader();
         r.onload = (e) => {
             const img = new Image();
@@ -256,7 +253,10 @@ window.borrarPortero = function(id) { if(confirm("¿Borrar?")) db.collection("po
 // --- OBJETIVOS (LISTA LIMPIA) ---
 window.resetearEvaluacionTemporal = function() {
     evaluacionesTemporales = []; competenciaSeleccionada = null; window.selectCompetencia(null);
-    window.renderizarListaTemporal(); document.getElementById('contenedor-evaluacion-temporal').style.display = 'none'; window.cargarAccionesObjetivos();
+    window.renderizarListaTemporal(); 
+    document.getElementById('contenedor-evaluacion-temporal').style.display = 'none'; 
+    document.getElementById('obj-observacion').value = ''; // Limpiar observación
+    window.cargarAccionesObjetivos();
 }
 window.cargarAccionesObjetivos = function() {
     const tipo = document.getElementById('obj-tipo').value; const sel = document.getElementById('obj-accion');
@@ -287,11 +287,15 @@ window.renderizarListaTemporal = function() {
         cont.innerHTML += `<div class="item-temp-eval" style="border-left: 4px solid ${col}"><strong>${item.accion}</strong><br><span style="color:${col}">${txt}</span> | Nota: ${item.puntaje}</div>`;
     });
 }
+// GUARDAR INCLUYENDO OBSERVACIÓN
 window.guardarReporteCompleto = function() {
     const pid = document.getElementById('obj-portero').value; const fecha = document.getElementById('obj-fecha').value;
+    const observacion = document.getElementById('obj-observacion').value; // Capturar texto
+
     if(!pid || !fecha || evaluacionesTemporales.length === 0) return alert("Sin datos");
     const reporteID = String(Date.now());
-    const reporte = { id: reporteID, porteroId: pid, fecha: fecha, acciones: evaluacionesTemporales, timestamp: Date.now() };
+    const reporte = { id: reporteID, porteroId: pid, fecha: fecha, acciones: evaluacionesTemporales, observacion: observacion, timestamp: Date.now() };
+    
     db.collection("reportes").doc(reporteID).set(reporte).then(() => {
         const batch = db.batch();
         evaluacionesTemporales.forEach(item => {
@@ -301,6 +305,7 @@ window.guardarReporteCompleto = function() {
         batch.commit(); generarPDFReporteLote(reporte); window.resetearEvaluacionTemporal();
     });
 }
+// FIX: PDF TÍTULO, NOTA MEDIA Y OBSERVACIÓN FINAL
 function generarPDFReporteLote(reporte) {
     db.collection("porteros").doc(reporte.porteroId).get().then(doc => {
         const p = doc.data(); const foto = p.foto || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgOGEzIDMgMCAxIDAgMCA2IDMgMyAwIDAgMCAwLTZ6bS01IDlsMTAgMGE3IDcgMCAwIDEtMTAgMHoiLz48L3N2Zz4=";
@@ -313,7 +318,16 @@ function generarPDFReporteLote(reporte) {
             filas += `<tr><td style="padding:8px; border-bottom:1px solid #eee;">${item.accion}</td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center;"><span style="background:${bg}; color:${fg}; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${label}</span></td><td style="padding:8px; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">${item.puntaje}</td></tr>`;
         });
         const media = (sum / reporte.acciones.length).toFixed(1);
-        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE OBJETIVOS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p><p style="margin-top:5px;font-size:1.1em;color:#1C2C5B"><strong>Nota Media Seguimiento: ${media}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
+        
+        // BLOQUE HTML OBSERVACIÓN
+        const obsHtml = reporte.observacion ? 
+            `<div class="pdf-obs-box" style="margin-top:20px; border: 1px solid #ddd; background: #f9f9f9; padding:10px;">
+                <div class="pdf-obs-header" style="color:#CB3524; font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:5px; margin-bottom:5px;">OBSERVACIÓN FINAL DEL SEGUIMIENTO DE OBJETIVOS</div>
+                <div style="font-size:12px; white-space: pre-wrap;">${reporte.observacion}</div>
+             </div>` : '';
+
+        const html = `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE OBJETIVOS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-portero-ficha" style="margin-bottom:20px;"><img src="${foto}" class="pdf-portero-foto"><div class="pdf-portero-datos" style="margin-left:20px;"><h2 style="margin:0;color:#CB3524;">${p.nombre}</h2><p style="margin:5px 0;">${p.equipo} - ${p.categoria}</p><p>Fecha Reporte: <strong>${reporte.fecha}</strong></p><p style="margin-top:5px;font-size:1.1em;color:#1C2C5B"><strong>Nota Media Seguimiento: ${media}</strong></p></div></div><div class="pdf-section-pro"><h3 class="pdf-section-title">EVALUACIÓN DE COMPETENCIAS</h3><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f0f0f0;"><th style="padding:10px;">Acción Técnica</th><th style="padding:10px;text-align:center;">Nivel</th><th style="padding:10px;text-align:center;">Nota</th></tr></thead><tbody>${filas}</tbody></table></div>${obsHtml}<div class="pdf-footer"><p>Guardian Lab ATM Pro - Reporte de Seguimiento</p></div></div>`;
+        
         document.getElementById('preview-content').innerHTML = html; document.getElementById('printable-area').innerHTML = html; document.getElementById('modal-pdf-preview').style.display = 'flex';
     });
 }
@@ -339,6 +353,47 @@ window.borrarReporte = function(id) {
             batch.commit();
         });
     }
+}
+// CORRECCIÓN DATOS FANTASMA: FILTRAR POR REPORTES ACTIVOS
+window.actualizarGrafica = async function() {
+    const pid = document.getElementById('select-stats-portero').value; 
+    if(!pid) return;
+    
+    // 1. Obtener IDs de reportes VIGENTES (no borrados)
+    const reportesSnap = await db.collection("reportes").where("porteroId", "==", pid).get();
+    const reportesActivos = new Set();
+    reportesSnap.forEach(doc => reportesActivos.add(doc.id));
+
+    // 2. Obtener seguimientos
+    const snap = await db.collection("seguimientos").where("porteroId", "==", pid).get();
+    let raw = [];
+    snap.forEach(d => {
+        const data = d.data();
+        // Solo añadir si su reporte padre existe
+        if(reportesActivos.has(data.reporteId)) {
+            raw.push(data);
+        }
+    });
+
+    raw.sort((a,b) => new Date(a.fecha) - new Date(b.fecha)); // Orden local
+    
+    const dataPoints = []; const labels = []; let total = 0;
+    // Graficar ultimos 50 validos
+    const finalData = raw.slice(-50);
+    
+    finalData.forEach(d => { 
+        dataPoints.push(d.puntaje); 
+        labels.push(d.fecha.substring(5)); 
+        total += parseInt(d.puntaje); 
+    });
+    
+    const media = finalData.length ? (total/finalData.length).toFixed(1) : "0.0"; 
+    
+    document.getElementById('kpi-media').innerText = media; 
+    document.getElementById('kpi-clean-sheets').innerText = reportesActivos.size; // Total reportes
+    
+    const ctx = document.getElementById('graficaRendimiento').getContext('2d'); if(window.myChart) window.myChart.destroy();
+    window.myChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Puntaje', data: dataPoints, borderColor: '#CB3524', backgroundColor: 'rgba(203,53,36,0.1)', tension: 0.4, fill: true }] }, options: { scales: { y: { min: 0, max: 5 } }, plugins: { legend: { display: false } } } });
 }
 
 // --- LIVE MATCH ---
@@ -546,7 +601,7 @@ function generarHTMLPartido(datos, listaP, anaData) {
             cronoHTML += `<tr class="${cl}"><td><strong>${ev.min}</strong></td><td class="pdf-crono-evento">${ev.nom}</td><td>${ev.pnom}</td><td>${resTxt}</td><td style="font-size:10px;">${ev.obs||''}</td></tr>`;
         }
     });
-    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${datos.config.equipo}</td><td><strong>Categoría:</strong> ${datos.config.tipo}</td><td><strong>Tipo:</strong> ${datos.config.tipo}</td><td><strong>Jornada:</strong> ${datos.config.jornada}</td></tr><tr><td><strong>Rival:</strong> ${datos.config.rival}</td><td><strong>Fecha:</strong> ${datos.config.fecha}</td><td><strong>Dificultad:</strong> ${datos.config.dificultad}</td><td><strong>Entrenador:</strong> ${datos.config.entrenador}</td></tr><tr><td><strong>Campo:</strong> ${datos.config.campo}</td><td><strong>Condición:</strong> ${datos.config.condicion}</td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.local}</span> - <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.rival}</span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3>${analisisHTML}</div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div>`;
+    return `<div class="pdf-container"><div class="pdf-header-pro"><img src="ESCUDO ATM.png" class="pdf-logo"><div class="pdf-title-box"><h1>ATLÉTICO DE MADRID</h1><h2>SEGUIMIENTO DE PORTEROS</h2></div></div><div class="pdf-divider-red"></div><div class="pdf-section-pro"><h3 class="pdf-section-title">INFORMACIÓN DEL PARTIDO</h3><table class="pdf-table-info"><tr><td><strong>Equipo:</strong> ${cfg.equipo}</td><td><strong>Categoría:</strong> ${cfg.tipo}</td><td><strong>Tipo:</strong> ${cfg.tipo}</td><td><strong>Jornada:</strong> ${cfg.jornada}</td></tr><tr><td><strong>Rival:</strong> ${cfg.rival}</td><td><strong>Fecha:</strong> ${cfg.fecha}</td><td><strong>Dificultad:</strong> ${cfg.dificultad}</td><td><strong>Entrenador:</strong> ${cfg.entrenador}</td></tr><tr><td><strong>Campo:</strong> ${cfg.campo}</td><td><strong>Condición:</strong> ${cfg.condicion}</td><td colspan="2"></td></tr><tr><td colspan="4" style="background-color: #f4f4f4; text-align: center; font-size: 14px; padding: 10px;"><strong>RESULTADO:</strong> ATM <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.local}</span> - <span style="color:#CB3524; font-size:16px; font-weight:bold">${datos.marcador.rival}</span> RIVAL</td></tr></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">PORTEROS Y ESTADÍSTICAS</h3>${porterosHTML}</div><div class="pdf-section-pro"><h3 class="pdf-section-title">REGISTRO CRONOLÓGICO</h3><table class="pdf-crono-table"><thead><tr><th>Min</th><th>Acción</th><th>Portero</th><th>Calif.</th><th>Obs.</th></tr></thead><tbody>${cronoHTML}</tbody></table></div><div class="pdf-section-pro"><h3 class="pdf-section-title">ANÁLISIS TÉCNICO INDIVIDUAL</h3>${analisisHTML}</div><div class="pdf-footer"><p>Guardian Lab ATM Pro - Informe Técnico</p></div></div>`;
 }
 window.imprimirPDFNativo = function() { window.print(); }
 function cargarPartidosHistorial() {
